@@ -37,6 +37,11 @@ class wazuh::client(
   $manage_client_keys              = 'authd',
   $agent_auth_password             = undef,
   $wazuh_manager_root_ca_pem       = undef,
+  $wazuh_manager_root_ca_pem_path  = undef,
+  $wazuh_agent_cert_content        = undef,
+  $wazuh_agent_key_content         = undef,
+  $wazuh_agent_cert_path           = undef,
+  $wazuh_agent_key_path            = undef,
   $agent_seed                      = undef,
   $max_clients                     = 3000,
   $ar_repeated_offenders           = '',
@@ -178,11 +183,46 @@ class wazuh::client(
           content => $wazuh_manager_root_ca_pem,
           require => Package[$agent_package_name],
         }
-
-        $agent_auth_command = "${agent_auth_base_command} -v /var/ossec/etc/rootCA.pem"
-      } else {
-        $agent_auth_command = $agent_auth_base_command
+       $agent_auth_option_manager = "-v /var/ossec/etc/rootCA.pem"
       }
+
+      elsif ($wazuh_manager_root_ca_pem_path != undef){
+        validate_string($wazuh_manager_root_ca_pem_path)
+        $agent_auth_option_manager = "-v $wazuh_manager_root_ca_pem_path "
+     }
+
+    # https://documentation.wazuh.com/current/user-manual/registering/use-registration-service.html#verify-agents-via-ssl
+    if ($wazuh_agent_cert_content != undef) and ($wazuh_agent_key_content != undef) {
+      validate_string($wazuh_agent_cert_content)
+      validate_string($wazuh_agent_key_content)
+      file { '/var/ossec/etc/sslagent.cert':
+        owner   => $wazuh::params::keys_owner,
+        group   => $wazuh::params::keys_group,
+        mode    => $wazuh::params::keys_mode,
+        content => $wazuh_agent_cert_content,
+        require => Package[$agent_package_name],
+      }
+      file { '/var/ossec/etc/sslagent.key':
+        owner   => $wazuh::params::keys_owner,
+        group   => $wazuh::params::keys_group,
+        mode    => $wazuh::params::keys_mode,
+        content => $wazuh_agent_key_content,
+        require => Package[$agent_package_name],
+      }
+
+      $agent_auth_option_agent = "-x /var/ossec/etc/sslagent.cert -k /var/ossec/etc/sslagent.key"
+
+    }
+    elsif ($wazuh_agent_cert_path != undef) and ($wazuh_agent_key_path != undef) {
+      validate_string($wazuh_agent_cert_path, $wazuh_agent_key_path)
+      $agent_auth_option_agent = "-x $wazuh_agent_cert_path -k $wazuh_agent_key_path"
+    }
+
+
+
+
+    $agent_auth_command = "$agent_auth_base_command $agent_auth_option_manager $agent_auth_option_agent"
+
 
       if $agent_auth_password {
         exec { 'agent-auth-with-pwd':
@@ -226,3 +266,4 @@ class wazuh::client(
     }
   }
 }
+

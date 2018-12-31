@@ -58,6 +58,7 @@ class wazuh::server (
   $shared_agent_template               = 'wazuh/ossec_shared_agent.conf.erb',
   $api_config_template                 = 'wazuh/api/config.js.erb',
   $wazuh_manager_verify_manager_ssl    = false,
+  $wazuh_manager_agent_verification    = false,
   $wazuh_manager_server_crt            = undef,
   $wazuh_manager_server_key            = undef,
   Boolean $manage_firewall             = $::wazuh::params::manage_firewall,
@@ -212,6 +213,41 @@ class wazuh::server (
     }
 
   }
+  if ( $ossec_authd_enabled ){
+    if($wazuh_manager_agent_verification ){
+      service { 'ossec-authd':
+        ensure    => false,
+	hasstatus => 'false',
+        provider  => 'base',
+        pattern   => 'ossec-authd$',
+      }
+
+      service { 'ossec-authd-agent-verification-enabled':
+        ensure    => running,
+        hasstatus => 'false',
+        provider  => 'base',
+        pattern   => 'ossec-authd -v /var/ossec/etc/rootCA.pem',
+        start     => '/var/ossec/bin/ossec-authd -v /var/ossec/etc/rootCA.pem'
+      }
+    }elsif( $wazuh_manager_agent_verification == false ){
+        service { 'ossec-authd-agent-verification-enabled':
+          ensure    => false,
+          hasstatus => 'false',
+          provider  => 'base',
+          pattern   => 'ossec-authd -v /var/ossec/etc/rootCA.pem',
+        }
+
+        service { 'ossec-authd':
+          ensure    => running,
+	  hasstatus => 'false',
+          provider  => 'base',
+          pattern   => 'ossec-authd$',
+          start     => '/var/ossec/bin/ossec-authd', 
+        }
+
+
+      }
+  }
 
   ### Wazuh API
   if $install_wazuh_api {
@@ -283,3 +319,4 @@ class wazuh::server (
     }
   }
 }
+
